@@ -1,0 +1,492 @@
+---
+title: "Final Report"
+author: "Qiushuo Chen-922867295"
+date: "2024-03-16"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    df_print: paged
+    number_sections: yes
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+
+
+# Abstract
+
+In order to analyze the effect of class type on the math scaled score in the Project STAR, we put variables math scaled score, class type, school, etc., in our analysis. The mean of math scaled score for each class is computed as the response variable and corresponding two-way ANOVA model is established. The result of model diagnostics indicates that assumptions of two-way ANOVA model are satisfied. Through F-test and Tukey test, conclusions are made that there are significant differences in math scaled scores in 1st grade across class types and small class is associated with the highest math scaled scores in 1st grade at level 0.05.
+
+
+
+# Introduction
+
+
+The primary question of interest is whether there is any differences in math scaled scores in 1st grade across class types, and if so, a secondary question of interest is which class type is associated with the highest math scaled scores in 1st grade. It is meaningful to explore whether the size of class makes differences to the 1st grade students' academic performance in math. This result will help educators 
+understand the effect of class size on the math academic performance of students in the early grades (or whether there is a specific class size making statistically significant contributions to the math academic performance of students in the early grades), which would render instructions for further improvement in education system.
+
+
+ 
+# Background 
+
+## Data source and randomized design
+
+The Tennessee Student Teacher Achievement Ratio (STAR) was a large-scale, randomized, longitudinal experiment conducted between 1985 and 1989 to evaluate the effect of class sizes on test scores based on early childhood education theory. To ensure rigorousness of the experiment, it followed the design basically as follows:
+
+
+* Each STAR school had a large enough student body to form at least one of each of the three class types: small class (15-17), regular class (22-25), and regular+aide (22-25). The within-school design controlled for differences among schools and the effect of class size could not be attributed to these factors.
+
+* 79 schools in 42 systems met the within- school design requirement, and the STAR sample was nearly 7,000 students per grade level. The large sample lent credibility to the results and allowed for reduced sample size due to inevitable student mobility.
+
+* Students and teachers were randomly assigned to their class type. The randomization made certain that differences in the students’ test scores could be confidently attributed to class size.
+
+* Investigators followed the standard procedures for confidentiality and human subjects’ research.
+
+* Student achievement was tracked by standardized tests, which were carefully monitored.
+
+
+This randomized design makes sure the numbers of observations in each group divided by variables such as class type and school are in the similar level and individual observations are independent of each other, which provides us with favorable conditions for modeling. 
+
+
+## Previous findings
+
+The dataset contains 11,601 observations (students) and 379 variables in total. In this report, our main goal is to examine the relationship between math scores and class type in 1st grade then variables with respect to 1st grade would be mainly focused on. Combining related research report and paper and our initial analysis report, small class showed positive impacts on students' academic performance and achievement.
+
+In the initial analysis report, we only attempted to contain variables math scaled score, class type and school in our model and without model comparison, we cannot make sure whether the model established is preferable. Moreover, a necessary model modification was neglected in the initial analysis report. These caveats in the initial analysis report should also be taken into account in the further analysis.
+
+
+# Descriptive analysis 
+
+
+## Data input and EDA
+
+
+To answer questions of interest, we choose math scaled score, teacher ID, class type and school ID in 1st grade as basic variables. Considering the caveat in the initial analysis report, it is also meaningful to find other variables possibly contributing to the variation of math scaled score in 1st grade, school urbanicity, teacher's highest degree, years of teaching experience and free lunch status in 1st grade are also included for the further analysis.
+
+
+```{r, include=T, message = FALSE, warning = FALSE}
+library(Hmisc)
+library(ggplot2)
+star=spss.get('~/desktop/STAR_Students.sav')
+data=star[,c("g1tmathss","g1tchid","g1classtype","g1schid","g1surban","g1thighdegree","g1tyears","g1freelunch")]
+names(data)=c("math","teacher","star","school","location","degree","experience","freelunch")
+data$teacher=as.factor(data$teacher)
+data$star=as.factor(data$star)
+data$school=as.factor(data$school)
+data$location=as.factor(data$location)
+data$degree=as.factor(data$degree)
+data$freelunch=as.factor(data$freelunch)
+summary(data)
+par(mfrow=c(1,2))
+hist(data$math,main='Histogram of math',xlab='math')
+hist(data$experience,main='Histogram of experience',xlab='experience')
+par(mfrow=c(1,1))
+
+```
+
+
+By conducting descriptive analysis on variables math, teacher, star(class type), school, location, degree, experience and freelunch, it can be concluded that:
+
+1) For math scaled score in 1st grade, the mean is 530.5 and the median is 529.0. There are 5003 missing values. From the histogram, samples seemingly obey normal distribution.
+
+2) There are most students from the teacher whose teacher ID is 16821107 or 16821110 and the number of students is 30. There are 4772 missing values in the variable teacher.
+
+3) There are most students attending regular class and the number is 2584. There are least students attending small class and the number is 1925. There are 4772 missing values in the variable star.
+
+4) There are most students from the school whose school ID is 169229 and the number of students is 238. There are 4772 missing values in the variable school.
+
+5) There are most students from rural schools and the number is 3237. There are least students from urban schools and the number is 626. There are 4772 missing values in the variable location.
+
+6) There are most students having a teacher with bachelor's degree as highest degree and the number is 4456. There are least students having a teacher with doctoral degree as highest degree and the number is 22. There are 4791 missing values in the variable degree.
+
+7) For years of teacher's total teaching experience in 1st grade, the mean is 11.63 and the median is 10.00. There are 4791 missing values. From the histogram, the number of teachers decreases as experience grows.
+
+8) Among all students included in the STAR program, 3429 of them have free lunch, which implies they were from comparatively low-income family and 3221 do not have free lunch. There are 4951 missing values in the variable freelunch.
+
+
+## Data manipulation
+
+
+```{r, include=T, message=FALSE}
+library(dplyr)
+data=na.omit(data)
+p_ori=ggplot(data,aes(star,math))
+p_ori+geom_boxplot()
+change1=sub("NON-FREE LUNCH","0",data$freelunch)
+change2=sub("FREE LUNCH","1",change1)
+data$freelunch=as.numeric(change2)
+data$freelunch[is.na(data$freelunch)]=0
+newdata=reframe(group_by(data,teacher),mean(math),school,star,location,degree,experience,mean(freelunch))
+newdata=distinct(newdata)
+names(newdata)=c("teacher","math","school","star","location","degree","experience","freelunch")
+```
+
+Since there are enough samples in the data set and it is hard to explain the missing values, we can delete all missing values and keep the rest 6423 observations. For the rest observations, a box plot of math scaled score against class type shows the average math score level of small class is seemingly higher than that of the other two class types.
+
+
+We can choose the mean of students' math scaled score in one class as the summary measure since there is no obvious influential outliers from box plots and summary tables above and mean is the best statistic which reflects the average level of data set. To quantify the free lunch status, a free lunch ratio per class is calculated to replace the previous variable freelunch.
+
+
+## Multivariate descriptive statistics
+
+
+```{r}
+library(ggplot2)
+summary(newdata)
+par(mfrow=c(1,3))
+hist(newdata$math,main='Histogram of math',xlab='math')
+hist(newdata$experience,main='Histogram of experience',xlab='experience')
+hist(newdata$freelunch,main='Histogram of freelunch',xlab='freelunch')
+par(mfrow=c(1,1))
+```
+
+
+Through the descriptive analysis on the new data set with 336 new observations (each class/teacher), we can observe that:
+
+1) For the outcome (the mean of students' math scaled score in one class), the mean is 531.5 and the median is 532.4.
+
+2) There are still most teachers from the school whose school ID is 169229 and the number of subjects is 12.
+
+3) There are most teachers in the small class and the number is 123. There are least teachers in the regular+aide class and the number is 98. The number of classes in three class types are on the similar level.
+
+4) There are most classes from rural school and the number is 157. There are least classes from urban school and the number is 31.
+
+5) There are most teachers with bachelor's degree as highest degree and the number is 217. There are least teachers with doctoral degree as highest degree and the number is 1.
+
+6) For teaching experience, the mean is 11.72 and the median is 11.00.
+
+7) For free lunch ratio, the mean is 0.5079 and the median is 0.4361.
+
+
+### Outcome vs class type
+
+```{r}
+p=ggplot(newdata,aes(star,math))
+p+geom_boxplot()
+```
+
+
+By drawing the boxplot between the outcome (the mean of students' math scaled score in one class) and class types, we can observe that students in the small class seemlingly have the highest average math score. Then students in the regular with aide class are second to that and students in the regular class seemlingly have the lowest average math score. This is similar to our observation in the previous data manipulation part. 
+
+
+### Outcome vs school
+
+```{r}
+p_school=ggplot(newdata,aes(school,math))
+p_school+geom_boxplot()
+```
+
+
+By drawing the boxplot between the outcome (the mean of students' math scaled score in one class) and school IDs, it can be observed that math scaled score varies in different schools, which indicates school is highly likely to affect the outcome significantly.
+
+See details about multivariate descriptive statistics of other variables in appendix.
+
+
+# Inferential analysis 
+
+## Model introduction
+
+
+Since star (class type) and school are both factorial variables and randomized design of Project STAR maintains the numbers of observations in each group divided by class type and school are in the similar level, the two-way ANOVA model becomes a highly advisable approach to solve questions of interest.
+
+We can define a two-way ANOVA model as follows $$Y_{ijk}=\mu_{..}+\alpha_{i}+\beta_{j}+\epsilon_{ijk}$$, where index and parameters can be explained: 
+
+
+* $i$: The index $i$ represents the class type: small ($i=1$), regular ($i=2$), regular with aide ($i=3$).
+
+* $j$: The index $j$ represents the school indicator.
+
+* $Y_{ijk}$: The outcome (the mean of students' math scaled score) for the $k$th observation in the $j$th school within the $i$th class type.
+
+* $\mu_{..}$: The overall mean of the outcome across all class types and schools.
+
+* $\alpha_{i}$: The factor effect of the $i$th class type on the outcome.
+
+* $\beta_{j}$: The factor effect of the $j$th school on the outcome.
+
+* $\epsilon_{ijk}$: The error term for the $k$th observation in the $j$th school within the $i$th class type.
+
+
+Constraints on parameters are 
+
+1) $\sum\limits_{i}\alpha_{i}=0$, indicating that the effects of class types average to zero.
+
+2) $\sum\limits_{j}\beta_{j}=0$, indicating that the effects of schools average to zero.
+
+
+For the two-way ANOVA model $Y_{ijk}=\mu_{..}+\alpha_{i}+\beta_{j}+\epsilon_{ijk}$, assumptions are made that:
+
+1) Normality: The errors are normally distributed with mean zero and constant variance, ie. $\epsilon_{ijk}{\sim}N(0,\sigma^2)$.
+
+2) Independence: Observations are independent of each other. This assumption has been satisfied by the randomized design of Project STAR.
+
+3) Homoscedasticity: The variance of outcome should be homogenous across compared groups. More explicitly, the variation of math scaled score around the mean for each set of data should not vary significantly for all groups divided by class types and schools.
+
+
+## Model justification
+
+
+```{r, message = FALSE, warning = FALSE}
+model_pre=aov(math~school*star,data=newdata)
+summary(model_pre)
+```
+
+
+To justify the choice of model, we can use the data set to pre-establish the ANOVA model with variables school, star (class type) and the interaction term. F-test is established to find whether there is any interaction effect. The null and alternative hypotheses are $$H_0:(\alpha\beta)_{ij}=0, \forall i,j \ vs.\ H_a:(\alpha\beta)_{ij}\neq0, \exists {i,j}$$.
+
+The F-statistics is $F^*=MSAB/MSE$ and under the $H_0$ $F^*$ follows an F-distribution with  $df=((a-1)(b-1),(n-1)ab)$, where $a=3, b=76, n=336$.
+It turns out that p-value is 0.716>0.05, which indicates the effects of the interaction term are not significant. 
+
+Aside from that, there is no theoretical or empirical evidence showing that the interaction between school and class type makes a difference. Therefore, it is reasonable to ignore the effects of the interaction term on the outcome and drop the interaction term in the later analysis.
+
+
+## Model fitting
+
+
+```{r, include=T, message = FALSE, warning = FALSE}
+library(car)
+model_1=lm(math~school+star,data=newdata)
+Anova(model_1,type=2)
+```
+
+
+To find the possible effects of star (class type) and school on the outcome (math scaled score), we can also conduct F-tests. The null and alternative hypotheses are $$H_0:\alpha_i=0, \forall i=1,2,3\ vs.\ H_a:\alpha_i\neq0, \exists i=1,2,3$$ and $$H_0:\beta_j=0, \forall j=1,...,76\ vs.\ H_a:\beta_j\neq0, \exists j=1,...,76$$.
+
+From the anova table produced above, the value of F-statistic with respect to star (class type) is 21.1601 and the respective p-value is 3.094e-09<0.05. Therefore, we can reject the null hypothesis $H_0$ and make a conclusion that there are significant differences in math scaled scores in 1st grade across class types at significance 0.05. 
+
+Similarly, the value of F-statistic with respect to school is 6.4625 and the respective p-value<2.2e-16. Therefore, we can reject the null hypothesis $H_0$ and make a conclusion that there are significant differences in math scaled scores in 1st grade across schools at significance 0.05. 
+
+A table of effects for each level of star (class type) is shown as follows: 
+
+| star(class type) | effect | replication |
+| :----: | :----: | :----: |
+| SMALL CLASS | 7.66 | 123.00 |
+| REGULAR CLASS | -5.214 | 115.00 |
+| REGULAR + AIDE CLASS | -3.495 | 98.00 |
+
+In particular, the outcome (math scaled score) of small class is higher than reference group by 7.66 on average; the outcome of regular and regular+aide class is lower than reference group by 5.214 and 3.495 respectively on average (see code and output in appendix).
+
+
+## Potential alternative models
+
+### Model with the variable school
+
+
+Since we want to find the relationship between math scaled score and class type, general linear regression model is another approach that would be taken into consideration. Our intuition is to put math as the response variable and put the rest variables (school, star, location, degree, experience and freelunch) as regressors. However, the output shows that effects of variables location, degree, experience and freelunch on the outcome (math scaled score) are not statistically significant at level 0.05.
+
+See code and output of this part in appendix.
+
+### Model without the variable school
+
+Through the previous analysis, it can be observed that the effect of school on the outcome (math scaled score) is significant and powerful. But it is still meaningful to explore whether there are possible variables replacing the variable school and even improving the explanation of model since it might be more intriguing to find the regularities (eg. school location, teacher's degree, family income) behind the outcome than to just know the outcome varies in different schools.
+
+Based on this, we can put math as the response variable and put variables star, location, degree, experience and freelunch as regressors. Then the backward stepwise-AIC method was used to find the model with comparatively low collinearity. In the selected model, regressors are variables math, location and freelunch and R-squared is 0.3104, which is much less than the R-squared of the original two-way ANOVA model (R-squared=(136433.74+11912.72)/(136433.74+11912.72+72624.44)=0.6713). The result indicates that this general linear regression model, which can hardly explain the pattern of data set well, should not be adopted.
+
+See code and output of this part in appendix.
+
+In conclusion, the original two-way ANOVA model should be viewed as the optimal model selection for this project.
+
+
+## Pairwise comparison
+
+
+```{r}
+sig.level=0.05
+model_2=aov(math~school+star,data=newdata)
+CI=TukeyHSD(model_2,"star",conf.level=1-sig.level)
+par(cex.axis=0.3)
+plot(CI,las=0,col="red")
+CI$star
+```
+
+For the secondary question of interest, it is a viable approach to solve it by Tukey-Cramer method. The result of TukeyHSD test can be interpreted as follows:
+
+* Regular class vs small class: The mean of difference between regular class and small class is -12.873945 and ranges from [-18.004180,-7.743710], with p-value=3.136886e-08<0.05. The result indicates that the outcome level of small class is significantly higher than regular class at level 0.05.
+
+* Regular+aide class vs small class: The mean of difference between regular+aide class and small class is -11.155364 and ranges from [-16.510627,-5.800101], with p-value=4.816163e-06<0.05. The result indicates that the outcome level of small class is significantly higher than regular+aide class at level 0.05.
+
+* Regular+aide class vs regular class: The mean of difference between regular+aide class and regular class is 1.718581 and ranges from [-3.718654,7.155816], with p-value=0.7368597>0.05. The result indicates that the difference of outcome level between regular+aide class and regular class is not statistically significant at level 0.05.
+
+Combine the plot of differences in mean levels of star (class type) drawn by Tukey-Cramer method and the result of TukeyHSD test, it is obvious that the outcome level of small class is significantly higher than the other two types of class, which means the type of small class is associated with the highest math scaled scores in 1st grade at significance 0.05.
+
+
+# Sensitivity analysis 
+
+## Model modification
+```{r, include=T, message = FALSE, warning = FALSE}
+library(MASS)
+boxcox(model_1)
+model_f=lm((math)^(-2)~school+star,data=newdata)
+aov(model_f)
+```
+
+
+We can use the Box-Cox procedure to find whether the response variable math need an appropriate transformation. The result indicates that the transformation is $(Y_{ijk})_{new}\propto Y_{ijk}^{-2}$. After applying the modified model on the data set, the R-squared increases from 0.6713 to (2.495238e-11+1.984101e-12)/(2.495238e-11+1.984101e-12+1.251835e-11)=0.6827. Then we can use the modified model for further analysis.
+
+
+
+```{r}
+model_fi=aov((math)^(-2)~school+star,data=newdata)
+summary(model_fi)
+newCI=TukeyHSD(model_fi,"star",conf.level=1-sig.level)
+par(cex.axis=0.3)
+plot(newCI,las=0,col="red")
+newCI$star
+```
+
+Same conclusion can be made from F-test and TukeyHSD test on the modified model that there are significant differences in math scaled scores in 1st grade across class types and small class is associated with the highest math scaled scores in 1st grade at level 0.05.
+
+
+
+## Model diagnostics
+
+### Residual plot and Q-Q plot
+
+```{r}
+par(mfrow=c(1,2))
+plot(model_f,which=1:2)
+```
+
+The residuals vs. Fitted plot shows no obvious pattern and the spread of the residuals is roughly the same across the horizontal axis. The Q-Q plot shows slightly heavy tails but still in an acceptable range. Through these plots it can be concluded that residuals approximately obey $\epsilon_{ijk}{\sim}N(0,\sigma^2)$ and the normality assumption is satisfied.
+
+
+### Kruskal-Wallis test
+
+Additionally, Kruskal-Wallis rank sum test is conducted to verify the possible difference in distribution across groups defined by star (class type) and school. And Kruskal-Wallis test applies when observations are independent, which is satisfied by the randomized design of project STAR. 
+
+The null and alternative hypotheses are $$H_0:Three\ levels\ of\ class\ type\ have\ the\ same\ distribution\ in\ math\ scaled\ score\ vs. \ H_a:At\ least\ one\ level\ of\ class\ type\ has\ different\ distribution\ in\ math\ scaled\ score\ from\ the\ other\ two\ levels\ $$ and $$H_0:All\ schools\ have\ the\ same\ distribution\ in\ math\ scaled\ score\ vs. \ H_a:At\ least\ one\ school\ has\ different\ distribution\ in\ math\ scaled\ score\ from\ the\ other\ schools\ $$.
+
+The statistic is $F^*=(n-1)\frac{\sum_{i=1}^{r}(\bar{R_{i\cdot}}-\bar{R_{\cdot\cdot}})^2}{\sum_{i=1}^{r}\sum_{j=1}^{n_i}({R_{ij}}-\bar{R_{\cdot\cdot}})^2}$. Under the $H_0$, $F^*\sim \chi^2_{r-1}$, where n=336, r is the number of observations in the group and $R_{ij}$ is the rank of $Y_{ij}$ among all 336 observations.
+
+```{r}
+kruskal.test(math~star,data=newdata)
+```
+
+
+The first result shows that p-value is 0.0002918<0.05, which represents that the overall distribution of the outcome for three class types can be considered to be different or not all the same, which verified the conclusion that there are significant differences in math scaled scores in 1st grade across class types at level 0.05.
+
+
+```{r}
+kruskal.test(math~school,data=newdata)
+```
+
+Similarly, the second result shows that p-value is 9.693e-15<0.05, verifying the conclusion that there are significant differences in math scaled scores in 1st grade across schools at level 0.05.
+
+
+### Levene test
+
+Levene test is used to test whether homogeneity of variance holds. 
+
+The null and alternative hypotheses are $$H_0: The\ variances\ across\ all\ groups\ are\ equal\ vs. \ H_a: The\ variance\ in\ at\ least\ one\ group\ is\ different\ from\ any\ other\ groups\ $$.
+
+New data is created with $d_{ij}=|Y_{ij}-\bar{Y_{i\cdot}}|$. And the statistic of Levene test is exactly the F-statistic for $H_0$. Under the $H_0$, $F^*\sim F_{{r-1},{n-r}}$, where n=336, r is the number of observations in the group.
+
+
+```{r, include=T, message=FALSE}
+library(car)
+leveneTest(residuals(model_f),group=model_f$model$star)
+```
+
+
+The result of Levene test shows that p-value=0.1783>0.05 then $H_0$ cannot be rejected. Therefore, we can conclude that the variance of the outcome is the same across all groups defined by class type and school at level 0.05, which means that the homoscedasticity assumption is satisfied.
+
+
+# Discussion 
+
+## Conclusion
+
+In this report, our goal is to find the effect of class type on the math scaled score of 1st grade in the Project STAR. Factors including math scaled score, teacher ID, class type, school ID, etc., are chosen as variables in our analysis. For further analysis, each class/teacher, instead of each student, is considered as the basic unit in the part of analysis. We put the mean of math scaled score for each class as the summary statistic and establish appropriate models with chosen variables, from which the two-way ANOVA model outperforms the other models for our questions of interest. Moreover, box-cox procedure is used to find the appropriate transformation of response variable. Assumptions of two-way ANOVA model are tested to be satisfied so that this model can be perceived suitable for the data set. Through F-test and Tukey test, conclusions are made that there are significant differences in math scaled scores in 1st grade across class types and small class is associated with the highest math scaled scores in 1st grade at level 0.05.
+
+
+## Suggestions for future research
+
+Through the overall analysis, we can know that the effect of school on the math scaled score is rather powerful but hard to interpret. It might make more pedagogical sense if we replace the effect of school with effects of concrete variables such as location and family income etc. In the data set of Project STAR, such variables measuring students' personal and family conditions are limited, which prevents us from doing further exploration on this topic. More variables like  included in the further survey and experiment, general linear regression model or other models are more prone to apply on this data set.
+
+For the method of analysis, non-parametric statistics might be less effort-consuming to solve questions of interest since much less assumptions are required to be satisfied. Apart from Kruskal-Wallis test, possible alternative methods are Permutation test (generate a null distribution by permuting the samples to test differences among groups) and Friedman test (compare whether there is a difference in the medians of paired samples).
+
+
+# Acknowledgement {-}
+
+  Having Discussion with: Wen-Lung Lin [wlglin@ucdavis.edu]
+
+# Reference {-}
+ 
+  Schanzenbach, D. W. (2006). What Have Researchers Learned from Project STAR? Brookings Papers on Education Policy, 9, 205–228. http://www.jstor.org/stable/20067282
+
+  Warden, D., Rush, A.J., Trivedi, M.H. et al. (2007). The STAR*D project results: A comprehensive review of findings. Curr Psychiatry Rep 9, 449–459. doi:10.1007/s11920-007-0061-3
+  
+# Appendix {-}
+
+## Multivariate descriptive statistics of other variables {-}
+
+### Outcome vs location {-}
+```{r}
+p_location=ggplot(newdata,aes(location,math))
+p_location+geom_boxplot()
+```
+
+### Outcome vs degree {-}
+```{r}
+p_degree=ggplot(newdata,aes(degree,math))
+p_degree+geom_boxplot()
+```
+
+
+### Outcome vs experience {-}
+```{r}
+p_experience=ggplot(newdata,aes(experience,math))
+p_experience+geom_point()
+```
+
+
+### Outcome vs freelunch {-}
+```{r}
+p_freelunch=ggplot(newdata,aes(freelunch,math))
+p_freelunch+geom_point()
+```
+
+
+## Potential alternative models exploration {-}
+
+### Model with the variable school {-}
+
+```{r, include=T, message = FALSE, warning = FALSE}
+model_3=aov(math~school+star+location+degree+experience+freelunch,data=newdata)
+Anova(model_3,type=2)
+```
+
+### Model without the variable school {-}
+
+```{r, include=T, message = FALSE, warning = FALSE}
+model_4=aov(math~star+location+degree+experience+freelunch,data=newdata)
+Anova(model_4,type=2)
+stepAIC(model_4, scope=list(upper=model_4, lower = ~1), direction="both", k=2, trace = FALSE)
+```
+
+
+
+```{r, message = FALSE, warning = FALSE}
+model_5=lm(math~star+location+freelunch,data=newdata)
+summary(model_5)
+```
+
+## Effect of class type and school on outcome {-}
+
+```{r}
+model.tables(model_2,type="effects")
+model.tables(model_fi,type="effects")
+```
+
+
+
+# Session info {-}
+
+
+
+
+```{r}
+sessionInfo()
+```
